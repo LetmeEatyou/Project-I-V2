@@ -26,9 +26,9 @@ export default function TodayScreen() {
     return selectedDate < new Date() ? 'Review what you completed' : 'Plan ahead with intention';
   }, [isToday, selectedDate]);
 
-  const shiftDay = () => {
+  const shiftDay = (amount: number) => {
     const next = new Date(selectedDate);
-    next.setDate(next.getDate() + 1);
+    next.setDate(next.getDate() + amount);
     setSelectedDate(next);
   };
 
@@ -50,7 +50,6 @@ export default function TodayScreen() {
       >
         <View style={styles.header}>
           <View>
-            <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>PERSONAL COMMAND CENTER</Text>
             <Text style={[styles.title, { color: colors.foreground }]}>Project I</Text>
           </View>
         </View>
@@ -67,7 +66,8 @@ export default function TodayScreen() {
             </View>
           </View>
           <View style={styles.dateActions}>
-            <Pressable accessibilityLabel="Next day" testID="next-day" onPress={shiftDay} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-right" size={19} color={colors.foreground} /></Pressable>
+            <Pressable accessibilityLabel="Previous day" testID="previous-day" onPress={() => shiftDay(-1)} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-left" size={19} color={colors.foreground} /></Pressable>
+            <Pressable accessibilityLabel="Next day" testID="next-day" onPress={() => shiftDay(1)} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-right" size={19} color={colors.foreground} /></Pressable>
           </View>
         </View>
 
