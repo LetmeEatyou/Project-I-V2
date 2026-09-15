@@ -1,11 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { dateKey, useTasks } from '@/context/task-context';
+import { blockWindowForDate, formatClock } from '@/lib/time';
+import { syncUpcomingBlockNotifications } from '@/lib/notifications';
 
 const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
 const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -13,13 +15,35 @@ const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 export default function TodayScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { tasks, isReady, toggleTask, preferences } = useTasks();
+  const { tasks, isReady, toggleTask, toggleSubtask, preferences } = useTasks();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [timerNow, setTimerNow] = useState(new Date());
   const selectedKey = dateKey(selectedDate);
   const completedCount = tasks.filter((task) => task.completedDates.includes(selectedKey)).length;
   const progress = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
   const focusTask = tasks.find((task) => !task.completedDates.includes(selectedKey)) ?? tasks[0];
   const isToday = dateKey(new Date()) === selectedKey;
+  const focusWindow = focusTask ? blockWindowForDate(selectedDate, focusTask.startTime, focusTask.endTime) : null;
+  const focusPhase = focusWindow && timerNow < focusWindow.start ? 'upcoming' : focusWindow && timerNow < focusWindow.end ? 'running' : 'ended';
+  const focusSeconds = focusWindow
+    ? focusPhase === 'upcoming'
+      ? (focusWindow.start.getTime() - timerNow.getTime()) / 1000
+      : (focusWindow.end.getTime() - timerNow.getTime()) / 1000
+    : 0;
+  const focusProgress = focusWindow && focusPhase === 'running'
+    ? Math.min(100, Math.max(0, ((timerNow.getTime() - focusWindow.start.getTime()) / (focusWindow.end.getTime() - focusWindow.start.getTime())) * 100))
+    : focusPhase === 'ended' ? 100 : 0;
+
+  useEffect(() => {
+    const interval = setInterval(() => setTimerNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (isReady && preferences.reminders) {
+      syncUpcomingBlockNotifications(tasks).catch(() => undefined);
+    }
+  }, [isReady, preferences.reminders, tasks]);
 
   const relativeCopy = useMemo(() => {
     if (isToday) return 'Your scheduled blocks';
@@ -34,6 +58,11 @@ export default function TodayScreen() {
 
   const handleToggle = (id: string) => {
     toggleTask(id, selectedKey);
+    if (preferences.haptics) Haptics.selectionAsync();
+  };
+
+  const handleSubtaskToggle = (taskId: string, subtaskId: string) => {
+    toggleSubtask(taskId, subtaskId, selectedKey);
     if (preferences.haptics) Haptics.selectionAsync();
   };
 
@@ -74,13 +103,22 @@ export default function TodayScreen() {
         {focusTask ? (
           <View style={[styles.focusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.focusHeader}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>CURRENT FOCUS</Text>
-              <View style={styles.activePill}><View style={[styles.activeDot, { backgroundColor: colors.success }]} /><Text style={[styles.activeText, { color: colors.mutedForeground }]}>IN VIEW</Text></View>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>CURRENT BLOCK</Text>
+              <View style={styles.activePill}><View style={[styles.activeDot, { backgroundColor: focusPhase === 'running' ? colors.primary : colors.mutedForeground }]} /><Text style={[styles.activeText, { color: colors.mutedForeground }]}>{focusPhase === 'running' ? 'RUNNING' : focusPhase === 'upcoming' ? 'UP NEXT' : 'ENDED'}</Text></View>
             </View>
             <Text style={[styles.focusTitle, { color: colors.foreground }]}>{focusTask.name}</Text>
-            <Text style={[styles.focusSubtitle, { color: colors.mutedForeground }]}>{focusTask.description}</Text>
-            <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}><View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.max(progress, 3)}%` }]} /></View>
-            <View style={styles.progressInfo}><Text style={[styles.miniText, { color: colors.mutedForeground }]}>{progress}% COMPLETE</Text><Text style={[styles.miniText, { color: colors.foreground }]}>{tasks.length - completedCount} REMAINING</Text></View>
+            <Text style={[styles.focusSubtitle, { color: colors.mutedForeground }]}>{focusTask.startTime} — {focusTask.endTime} · {focusTask.description}</Text>
+            <Text style={[styles.timerLabel, { color: colors.mutedForeground }]}>{focusPhase === 'upcoming' ? 'STARTS IN' : focusPhase === 'running' ? 'TIME REMAINING' : 'BLOCK ENDED'}</Text>
+            <Text style={[styles.timerValue, { color: colors.foreground }]}>{formatClock(focusSeconds)}</Text>
+            <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}><View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.max(focusProgress, 2)}%` }]} /></View>
+            <View style={styles.progressInfo}><Text style={[styles.miniText, { color: colors.mutedForeground }]}>{Math.round(focusProgress)}% BLOCK COMPLETE</Text><Text style={[styles.miniText, { color: colors.foreground }]}>{tasks.length - completedCount} BLOCKS LEFT</Text></View>
+            {focusTask.subtasks.length > 0 && <View style={[styles.subtaskList, { borderTopColor: colors.border }]}>
+              <Text style={[styles.subtaskHeading, { color: colors.mutedForeground }]}>ACTION LIST · {focusTask.subtasks.length}</Text>
+              {focusTask.subtasks.map((subtask) => {
+                const done = subtask.completedDates.includes(selectedKey);
+                return <Pressable key={subtask.id} testID={`subtask-${subtask.id}`} onPress={() => handleSubtaskToggle(focusTask.id, subtask.id)} style={styles.subtaskRow}><Feather name={done ? 'check-square' : 'square'} size={16} color={done ? colors.primary : colors.mutedForeground} /><Text style={[styles.subtaskName, { color: done ? colors.mutedForeground : colors.foreground, textDecorationLine: done ? 'line-through' : 'none' }]}>{subtask.name}</Text></Pressable>;
+              })}
+            </View>}
           </View>
         ) : (
           <View style={[styles.focusCard, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[styles.focusTitle, { color: colors.foreground }]}>Make room for a plan.</Text><Text style={[styles.focusSubtitle, { color: colors.mutedForeground }]}>Add your first task from the Tasks tab.</Text></View>
@@ -98,7 +136,7 @@ export default function TodayScreen() {
               <Pressable key={task.id} testID={`task-${task.id}`} onPress={() => handleToggle(task.id)} style={({ pressed }) => [styles.taskRow, { borderBottomColor: colors.border, backgroundColor: completed ? colors.brightCard : colors.deepCard, opacity: pressed ? 0.76 : 1 }, index === tasks.length - 1 && styles.lastRow]}>
                 <View style={[styles.statusStripe, { backgroundColor: completed ? colors.primary : colors.mutedForeground }]} />
                 <View style={styles.taskMain}><Text style={[styles.taskName, { color: colors.foreground }]}>{task.name}</Text><Text style={[styles.taskDescription, { color: completed ? colors.accentForeground : colors.mutedForeground }]}>{completed ? 'Completed for this day' : task.description}</Text></View>
-                <View style={styles.targetBlock}><Text style={[styles.smallLabel, { color: colors.mutedForeground }]}>TARGET</Text><Text style={[styles.target, { color: colors.foreground }]}>{task.target}</Text></View>
+                <View style={styles.targetBlock}><Text style={[styles.smallLabel, { color: colors.mutedForeground }]}>BLOCK</Text><Text style={[styles.target, { color: colors.foreground }]}>{task.startTime}</Text><Text style={[styles.targetEnd, { color: colors.mutedForeground }]}>{task.endTime}</Text></View>
                 <View style={styles.statusBlock}><Feather name={completed ? 'check-circle' : 'circle'} size={17} color={completed ? colors.primary : colors.mutedForeground} /><Text style={[styles.statusText, { color: completed ? colors.accentForeground : colors.foreground }]}>{completed ? 'Done' : 'Pending'}</Text><Text style={[styles.badge, { color: completed ? colors.primary : colors.mutedForeground }]}>{completed ? 'On track' : 'Tap to log'}</Text></View>
               </Pressable>
             );
@@ -111,7 +149,7 @@ export default function TodayScreen() {
           <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
           <Metric label="COMPLETION" value={`${completedCount}/${tasks.length}`} colors={colors} />
           <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
-          <Metric label="FOCUS" value={focusTask ? focusTask.target : '—'} colors={colors} />
+          <Metric label="FOCUS" value={focusTask ? focusTask.startTime : '—'} colors={colors} />
         </View>
 
         <Pressable testID="add-slot" onPress={() => router.push('/tasks')} style={({ pressed }) => [styles.addButton, { backgroundColor: colors.secondary, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
@@ -149,10 +187,16 @@ const styles = StyleSheet.create({
   activeText: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
   focusTitle: { fontSize: 23, fontFamily: 'Inter_600SemiBold', letterSpacing: -0.5 },
   focusSubtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 5, marginBottom: 22 },
+  timerLabel: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 4 },
+  timerValue: { fontSize: 34, lineHeight: 39, fontFamily: 'Inter_500Medium', letterSpacing: -1, marginBottom: 14 },
   progressTrack: { height: 5, borderRadius: 5, overflow: 'hidden' },
   progressFill: { height: '100%', minWidth: 5 },
   progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   miniText: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 0.6 },
+  subtaskList: { borderTopWidth: 1, marginTop: 18, paddingTop: 14 },
+  subtaskHeading: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 8 },
+  subtaskRow: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  subtaskName: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 },
   sectionTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   sectionSubtitle: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 4 },
@@ -167,6 +211,7 @@ const styles = StyleSheet.create({
   targetBlock: { width: 58 },
   smallLabel: { fontSize: 7, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginBottom: 4 },
   target: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  targetEnd: { fontSize: 9, fontFamily: 'Inter_400Regular', marginTop: 2 },
   statusBlock: { width: 72, alignItems: 'flex-start' },
   statusText: { fontSize: 10, fontFamily: 'Inter_500Medium', marginTop: -17, marginLeft: 23 },
   badge: { fontSize: 8, fontFamily: 'Inter_400Regular', marginTop: 5 },
