@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Project Istiqamah",
+    "slug": "project-istiqamah",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "project-istiqamah",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#090A09",
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {},
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

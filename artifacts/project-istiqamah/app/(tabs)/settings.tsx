@@ -1,0 +1,73 @@
+import { Feather } from '@expo/vector-icons';
+import React from 'react';
+import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColors } from '@/hooks/useColors';
+import { useTasks } from '@/context/task-context';
+
+export default function SettingsScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const { preferences, setPreference } = useTasks();
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, { paddingTop: insets.top + 22, paddingBottom: insets.bottom + 110 }]}>
+        <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>YOUR ENVIRONMENT</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Settings</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Keep the system quiet enough to use.</Text>
+
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>DAILY EXPERIENCE</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="volume-2" title="Haptic feedback" description="A small response when you log a task." colors={colors} value={preferences.haptics} onValueChange={(value) => setPreference('haptics', value)} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="bell" title="Reminders" description="Local reminders will be added next." colors={colors} value={preferences.reminders} onValueChange={(value) => setPreference('reminders', value)} />
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>IOS FOCUS DATA</Text>
+        <View style={[styles.usageCard, { backgroundColor: colors.brightCard, borderColor: colors.border }]}>
+          <View style={styles.usageHeader}><View style={[styles.usageIcon, { backgroundColor: colors.accent }]}><Feather name="activity" size={18} color={colors.primary} /></View><View style={styles.usageHeading}><Text style={[styles.usageTitle, { color: colors.foreground }]}>App usage monitoring</Text><Text style={[styles.comingSoon, { color: colors.primary }]}>NATIVE MODULE NEXT</Text></View></View>
+          <Text style={[styles.usageText, { color: colors.accentForeground }]}>Project Istiqamah can be extended with Apple&apos;s Screen Time APIs to compare your focus blocks with real device usage. That requires an iOS build with Apple&apos;s Family Controls entitlement; it cannot run inside Expo Go.</Text>
+          <Pressable onPress={() => Linking.openURL('https://developer.apple.com/documentation/familycontrols')} style={({ pressed }) => [styles.learnButton, { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 }]}><Text style={[styles.learnText, { color: colors.primary }]}>Learn about the iOS requirement</Text><Feather name="external-link" size={14} color={colors.primary} /></Pressable>
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ABOUT</Text>
+        <View style={[styles.about, { borderColor: colors.border }]}><Text style={[styles.aboutName, { color: colors.foreground }]}>Project Istiqamah</Text><Text style={[styles.aboutCopy, { color: colors.mutedForeground }]}>A private practice of showing up, one block at a time.</Text><View style={styles.versionRow}><Text style={[styles.version, { color: colors.mutedForeground }]}>VERSION</Text><Text style={[styles.versionValue, { color: colors.foreground }]}>0.1.0</Text></View></View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function SettingRow({ icon, title, description, colors, value, onValueChange }: { icon: React.ComponentProps<typeof Feather>['name']; title: string; description: string; colors: ReturnType<typeof useColors>; value: boolean; onValueChange: (value: boolean) => void }) {
+  return <View style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}><Feather name={icon} size={16} color={colors.foreground} /></View><View style={styles.settingCopy}><Text style={[styles.settingTitle, { color: colors.foreground }]}>{title}</Text><Text style={[styles.settingDescription, { color: colors.mutedForeground }]}>{description}</Text></View><Switch value={value} onValueChange={onValueChange} trackColor={{ false: colors.muted, true: colors.accent }} thumbColor={value ? colors.primary : colors.mutedForeground} /></View>;
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  container: { paddingHorizontal: 18 },
+  eyebrow: { fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1.6, marginBottom: 7 },
+  title: { fontSize: 34, fontFamily: 'Inter_400Regular', letterSpacing: -1 },
+  subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 5, marginBottom: 32 },
+  sectionLabel: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.4, marginBottom: 11 },
+  card: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 16, marginBottom: 29 },
+  settingRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center' },
+  settingIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  settingCopy: { flex: 1, paddingRight: 10 },
+  settingTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  settingDescription: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 4 },
+  divider: { height: 1 },
+  usageCard: { borderRadius: 20, borderWidth: 1, padding: 17, marginBottom: 29 },
+  usageHeader: { flexDirection: 'row', alignItems: 'center' },
+  usageIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  usageHeading: { flex: 1 },
+  usageTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  comingSoon: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginTop: 5 },
+  usageText: { fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 17, marginTop: 16 },
+  learnButton: { minHeight: 42, borderWidth: 1, borderRadius: 21, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 },
+  learnText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  about: { borderTopWidth: 1, paddingTop: 15 },
+  aboutName: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  aboutCopy: { fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 16, marginTop: 6 },
+  versionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
+  version: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.2 },
+  versionValue: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+});

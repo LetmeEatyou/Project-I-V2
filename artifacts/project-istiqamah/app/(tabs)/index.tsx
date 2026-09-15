@@ -1,0 +1,195 @@
+import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColors } from '@/hooks/useColors';
+import { dateKey, useTasks } from '@/context/task-context';
+
+const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+export default function TodayScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const { tasks, isReady, toggleTask, preferences } = useTasks();
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedKey = dateKey(selectedDate);
+  const completedCount = tasks.filter((task) => task.completedDates.includes(selectedKey)).length;
+  const progress = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const focusTask = tasks.find((task) => !task.completedDates.includes(selectedKey)) ?? tasks[0];
+  const isToday = dateKey(new Date()) === selectedKey;
+
+  const relativeCopy = useMemo(() => {
+    if (isToday) return 'Your scheduled blocks';
+    return selectedDate < new Date() ? 'Review what you completed' : 'Plan ahead with intention';
+  }, [isToday, selectedDate]);
+
+  const shiftDay = (amount: number) => {
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + amount);
+    setSelectedDate(next);
+  };
+
+  const handleToggle = (id: string) => {
+    toggleTask(id, selectedKey);
+    if (preferences.haptics) Haptics.selectionAsync();
+  };
+
+  if (!isReady) {
+    return <View style={[styles.loading, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
+  }
+
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 110 }]}
+      >
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>PERSONAL COMMAND CENTER</Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>Project I</Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Open settings"
+            testID="open-settings"
+            onPress={() => router.push('/settings')}
+            style={({ pressed }) => [styles.iconButton, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Feather name="sliders" size={19} color={colors.foreground} />
+          </Pressable>
+        </View>
+
+        <View style={[styles.dateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>CURRENT DATE</Text>
+            <View style={styles.dateRow}>
+              <Text style={[styles.dayNumber, { color: colors.foreground }]}>{selectedDate.getDate()}</Text>
+              <View>
+                <Text style={[styles.month, { color: colors.mutedForeground }]}>{monthNames[selectedDate.getMonth()]} {selectedDate.getFullYear()}</Text>
+                <Text style={[styles.weekday, { color: colors.foreground }]}>{weekDays[selectedDate.getDay()]}</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.dateActions}>
+            <Pressable accessibilityLabel="Previous day" testID="previous-day" onPress={() => shiftDay(-1)} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-left" size={19} color={colors.foreground} /></Pressable>
+            <Pressable accessibilityLabel="Next day" testID="next-day" onPress={() => shiftDay(1)} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-right" size={19} color={colors.foreground} /></Pressable>
+          </View>
+        </View>
+
+        {focusTask ? (
+          <View style={[styles.focusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.focusHeader}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>CURRENT FOCUS</Text>
+              <View style={styles.activePill}><View style={[styles.activeDot, { backgroundColor: colors.success }]} /><Text style={[styles.activeText, { color: colors.mutedForeground }]}>IN VIEW</Text></View>
+            </View>
+            <Text style={[styles.focusTitle, { color: colors.foreground }]}>{focusTask.name}</Text>
+            <Text style={[styles.focusSubtitle, { color: colors.mutedForeground }]}>{focusTask.description}</Text>
+            <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}><View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.max(progress, 3)}%` }]} /></View>
+            <View style={styles.progressInfo}><Text style={[styles.miniText, { color: colors.mutedForeground }]}>{progress}% COMPLETE</Text><Text style={[styles.miniText, { color: colors.foreground }]}>{tasks.length - completedCount} REMAINING</Text></View>
+          </View>
+        ) : (
+          <View style={[styles.focusCard, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[styles.focusTitle, { color: colors.foreground }]}>Make room for a plan.</Text><Text style={[styles.focusSubtitle, { color: colors.mutedForeground }]}>Add your first task from the Tasks tab.</Text></View>
+        )}
+
+        <View style={styles.sectionHeader}>
+          <View><Text style={[styles.sectionTitle, { color: colors.foreground }]}>TODAY&apos;S PLAN</Text><Text style={[styles.sectionSubtitle, { color: colors.mutedForeground }]}>{relativeCopy}</Text></View>
+          <Text style={[styles.slotCount, { color: colors.mutedForeground }]}>{tasks.length} {tasks.length === 1 ? 'SLOT' : 'SLOTS'}</Text>
+        </View>
+
+        <View style={[styles.taskList, { backgroundColor: colors.deepCard, borderColor: colors.border }]}>
+          {tasks.map((task, index) => {
+            const completed = task.completedDates.includes(selectedKey);
+            return (
+              <Pressable key={task.id} testID={`task-${task.id}`} onPress={() => handleToggle(task.id)} style={({ pressed }) => [styles.taskRow, { borderBottomColor: colors.border, backgroundColor: completed ? colors.brightCard : colors.deepCard, opacity: pressed ? 0.76 : 1 }, index === tasks.length - 1 && styles.lastRow]}>
+                <View style={[styles.statusStripe, { backgroundColor: completed ? colors.primary : colors.mutedForeground }]} />
+                <View style={styles.taskMain}><Text style={[styles.taskName, { color: colors.foreground }]}>{task.name}</Text><Text style={[styles.taskDescription, { color: completed ? colors.accentForeground : colors.mutedForeground }]}>{completed ? 'Completed for this day' : task.description}</Text></View>
+                <View style={styles.targetBlock}><Text style={[styles.smallLabel, { color: colors.mutedForeground }]}>TARGET</Text><Text style={[styles.target, { color: colors.foreground }]}>{task.target}</Text></View>
+                <View style={styles.statusBlock}><Feather name={completed ? 'check-circle' : 'circle'} size={17} color={completed ? colors.primary : colors.mutedForeground} /><Text style={[styles.statusText, { color: completed ? colors.accentForeground : colors.foreground }]}>{completed ? 'Done' : 'Pending'}</Text><Text style={[styles.badge, { color: completed ? colors.primary : colors.mutedForeground }]}>{completed ? 'On track' : 'Tap to log'}</Text></View>
+              </Pressable>
+            );
+          })}
+          {!tasks.length && <View style={styles.emptyPlan}><Feather name="inbox" size={22} color={colors.mutedForeground} /><Text style={[styles.emptyTitle, { color: colors.foreground }]}>No tasks for this day</Text><Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Build a plan from the Tasks tab.</Text></View>}
+        </View>
+
+        <View style={styles.metrics}>
+          <Metric label="PROGRESS" value={`${progress}%`} colors={colors} />
+          <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
+          <Metric label="COMPLETION" value={`${completedCount}/${tasks.length}`} colors={colors} />
+          <View style={[styles.metricDivider, { backgroundColor: colors.border }]} />
+          <Metric label="FOCUS" value={focusTask ? focusTask.target : '—'} colors={colors} />
+        </View>
+
+        <Pressable testID="add-slot" onPress={() => router.push('/tasks')} style={({ pressed }) => [styles.addButton, { backgroundColor: colors.secondary, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
+          <Feather name="plus" size={18} color={colors.foreground} /><Text style={[styles.addButtonText, { color: colors.foreground }]}>Manage tasks</Text><Feather name="arrow-up-right" size={15} color={colors.mutedForeground} />
+        </Pressable>
+        <View style={styles.footer}><Text style={[styles.footerText, { color: colors.mutedForeground }]}>PROJECT ISTIQAMAH</Text><Text style={[styles.footerText, { color: colors.mutedForeground }]}>BUILD 0.1</Text></View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function Metric({ label, value, colors }: { label: string; value: string; colors: ReturnType<typeof useColors> }) {
+  return <View style={styles.metric}><Text style={[styles.metricLabel, { color: colors.mutedForeground }]}>{label}</Text><Text style={[styles.metricValue, { color: colors.foreground }]}>{value}</Text></View>;
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { paddingHorizontal: 18 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
+  eyebrow: { fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1.6, marginBottom: 7 },
+  title: { fontSize: 38, fontFamily: 'Inter_400Regular', letterSpacing: -1.5 },
+  iconButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  dateCard: { minHeight: 118, borderRadius: 22, borderWidth: 1, paddingHorizontal: 20, paddingVertical: 18, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  label: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.5, marginBottom: 8 },
+  dateRow: { flexDirection: 'row', alignItems: 'center' },
+  dayNumber: { fontSize: 48, lineHeight: 52, fontFamily: 'Inter_400Regular', letterSpacing: -2, marginRight: 12 },
+  month: { fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 4 },
+  weekday: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  dateActions: { flexDirection: 'row', gap: 8 },
+  roundButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  focusCard: { borderRadius: 22, borderWidth: 1, padding: 20, marginBottom: 28 },
+  focusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  activePill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  activeDot: { width: 6, height: 6, borderRadius: 3 },
+  activeText: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
+  focusTitle: { fontSize: 23, fontFamily: 'Inter_600SemiBold', letterSpacing: -0.5 },
+  focusSubtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 5, marginBottom: 22 },
+  progressTrack: { height: 5, borderRadius: 5, overflow: 'hidden' },
+  progressFill: { height: '100%', minWidth: 5 },
+  progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+  miniText: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 0.6 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  sectionSubtitle: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 4 },
+  slotCount: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
+  taskList: { borderRadius: 20, overflow: 'hidden', borderWidth: 1, marginBottom: 26 },
+  taskRow: { minHeight: 92, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingRight: 12, borderBottomWidth: 1 },
+  lastRow: { borderBottomWidth: 0 },
+  statusStripe: { width: 3, height: 52, marginRight: 12 },
+  taskMain: { flex: 1, paddingRight: 6 },
+  taskName: { fontSize: 12.5, fontFamily: 'Inter_600SemiBold', lineHeight: 18 },
+  taskDescription: { fontSize: 9, fontFamily: 'Inter_400Regular', marginTop: 5, lineHeight: 13 },
+  targetBlock: { width: 58 },
+  smallLabel: { fontSize: 7, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginBottom: 4 },
+  target: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  statusBlock: { width: 72, alignItems: 'flex-start' },
+  statusText: { fontSize: 10, fontFamily: 'Inter_500Medium', marginTop: -17, marginLeft: 23 },
+  badge: { fontSize: 8, fontFamily: 'Inter_400Regular', marginTop: 5 },
+  emptyPlan: { alignItems: 'center', paddingVertical: 34, paddingHorizontal: 20 },
+  emptyTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold', marginTop: 10 },
+  emptyText: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 5 },
+  metrics: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, paddingHorizontal: 3 },
+  metric: { flex: 1 },
+  metricLabel: { fontSize: 7, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 7 },
+  metricValue: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  metricDivider: { width: 1, height: 34, marginHorizontal: 7 },
+  addButton: { minHeight: 56, borderRadius: 28, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  addButtonText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 52, paddingHorizontal: 4 },
+  footerText: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.4 },
+});
