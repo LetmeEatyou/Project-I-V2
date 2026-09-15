@@ -26,9 +26,9 @@ export default function TodayScreen() {
     return selectedDate < new Date() ? 'Review what you completed' : 'Plan ahead with intention';
   }, [isToday, selectedDate]);
 
-  const shiftDay = (amount: number) => {
+  const shiftDay = () => {
     const next = new Date(selectedDate);
-    next.setDate(next.getDate() + amount);
+    next.setDate(next.getDate() + 1);
     setSelectedDate(next);
   };
 
@@ -53,14 +53,6 @@ export default function TodayScreen() {
             <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>PERSONAL COMMAND CENTER</Text>
             <Text style={[styles.title, { color: colors.foreground }]}>Project I</Text>
           </View>
-          <Pressable
-            accessibilityLabel="Open settings"
-            testID="open-settings"
-            onPress={() => router.push('/settings')}
-            style={({ pressed }) => [styles.iconButton, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
-          >
-            <Feather name="sliders" size={19} color={colors.foreground} />
-          </Pressable>
         </View>
 
         <View style={[styles.dateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -75,8 +67,7 @@ export default function TodayScreen() {
             </View>
           </View>
           <View style={styles.dateActions}>
-            <Pressable accessibilityLabel="Previous day" testID="previous-day" onPress={() => shiftDay(-1)} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-left" size={19} color={colors.foreground} /></Pressable>
-            <Pressable accessibilityLabel="Next day" testID="next-day" onPress={() => shiftDay(1)} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-right" size={19} color={colors.foreground} /></Pressable>
+            <Pressable accessibilityLabel="Next day" testID="next-day" onPress={shiftDay} style={[styles.roundButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Feather name="chevron-right" size={19} color={colors.foreground} /></Pressable>
           </View>
         </View>
 
@@ -143,7 +134,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 },
   eyebrow: { fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1.6, marginBottom: 7 },
   title: { fontSize: 38, fontFamily: 'Inter_400Regular', letterSpacing: -1.5 },
-  iconButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   dateCard: { minHeight: 118, borderRadius: 22, borderWidth: 1, paddingHorizontal: 20, paddingVertical: 18, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   label: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.5, marginBottom: 8 },
   dateRow: { flexDirection: 'row', alignItems: 'center' },

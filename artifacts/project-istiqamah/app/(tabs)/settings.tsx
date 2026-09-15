@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useTasks } from '@/context/task-context';
@@ -8,7 +8,21 @@ import { useTasks } from '@/context/task-context';
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { preferences, setPreference } = useTasks();
+  const { preferences, setPreference, tasks } = useTasks();
+  const exportBackup = () => {
+    const backup = JSON.stringify({
+      app: 'Project Istiqamah',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      tasks,
+      preferences,
+    }, null, 2);
+    if (Platform.OS === 'web') {
+      Alert.alert('Backup ready', 'Open Project Istiqamah on your iPhone to export this backup through the native share sheet.');
+      return;
+    }
+    Share.share({ title: 'Project Istiqamah backup', message: backup }).catch(() => undefined);
+  };
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, { paddingTop: insets.top + 22, paddingBottom: insets.bottom + 110 }]}>
@@ -29,6 +43,13 @@ export default function SettingsScreen() {
           <Text style={[styles.usageText, { color: colors.accentForeground }]}>Project Istiqamah can be extended with Apple&apos;s Screen Time APIs to compare your focus blocks with real device usage. That requires an iOS build with Apple&apos;s Family Controls entitlement; it cannot run inside Expo Go.</Text>
           <Pressable onPress={() => Linking.openURL('https://developer.apple.com/documentation/familycontrols')} style={({ pressed }) => [styles.learnButton, { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 }]}><Text style={[styles.learnText, { color: colors.primary }]}>Learn about the iOS requirement</Text><Feather name="external-link" size={14} color={colors.primary} /></Pressable>
         </View>
+
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>YOUR DATA</Text>
+        <View style={[styles.backupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.backupCopy}><Text style={[styles.backupTitle, { color: colors.foreground }]}>Keep a copy of your system</Text><Text style={[styles.backupText, { color: colors.mutedForeground }]}>Your tasks are stored locally. Export a backup before deleting the app or moving phones.</Text></View>
+          <Pressable testID="export-backup" onPress={exportBackup} style={({ pressed }) => [styles.exportButton, { backgroundColor: colors.secondary, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}><Feather name="upload" size={15} color={colors.foreground} /><Text style={[styles.exportText, { color: colors.foreground }]}>Export backup</Text></Pressable>
+        </View>
+        <Text style={[styles.backupNote, { color: colors.mutedForeground }]}>Automatic iCloud restore is a native iOS follow-up. iOS clears an app&apos;s local storage when the app is deleted.</Text>
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ABOUT</Text>
         <View style={[styles.about, { borderColor: colors.border }]}><Text style={[styles.aboutName, { color: colors.foreground }]}>Project Istiqamah</Text><Text style={[styles.aboutCopy, { color: colors.mutedForeground }]}>A private practice of showing up, one block at a time.</Text><View style={styles.versionRow}><Text style={[styles.version, { color: colors.mutedForeground }]}>VERSION</Text><Text style={[styles.versionValue, { color: colors.foreground }]}>0.1.0</Text></View></View>
@@ -64,6 +85,13 @@ const styles = StyleSheet.create({
   usageText: { fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 17, marginTop: 16 },
   learnButton: { minHeight: 42, borderWidth: 1, borderRadius: 21, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 },
   learnText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  backupCard: { borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 10 },
+  backupCopy: { paddingRight: 6 },
+  backupTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  backupText: { fontSize: 10, fontFamily: 'Inter_400Regular', lineHeight: 15, marginTop: 5 },
+  exportButton: { minHeight: 42, borderRadius: 21, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 15 },
+  exportText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  backupNote: { fontSize: 10, fontFamily: 'Inter_400Regular', lineHeight: 15, marginBottom: 29 },
   about: { borderTopWidth: 1, paddingTop: 15 },
   aboutName: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   aboutCopy: { fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 16, marginTop: 6 },

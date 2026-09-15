@@ -15,15 +15,19 @@ export default function TasksScreen() {
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
   const [description, setDescription] = useState('');
+  const [targetError, setTargetError] = useState('');
 
   const openNew = () => {
-    setEditing(null); setName(''); setTarget(''); setDescription(''); setModalVisible(true);
+    setEditing(null); setName(''); setTarget(''); setDescription(''); setTargetError(''); setModalVisible(true);
   };
   const openEdit = (task: Task) => {
-    setEditing(task); setName(task.name); setTarget(task.target); setDescription(task.description); setModalVisible(true);
+    setEditing(task); setName(task.name); setTarget(task.target); setDescription(task.description); setTargetError(''); setModalVisible(true);
   };
   const save = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !target.trim()) {
+      setTargetError('Add a target time or window so this slot has a clear finish line.');
+      return;
+    }
     if (editing) updateTask(editing.id, name, target, description);
     else addTask(name, target, description);
     if (preferences.haptics) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -58,11 +62,12 @@ export default function TasksScreen() {
             <View style={styles.modalHeader}><View><Text style={[styles.modalEyebrow, { color: colors.mutedForeground }]}>{editing ? 'REFINE YOUR PLAN' : 'NEW SLOT'}</Text><Text style={[styles.modalTitle, { color: colors.foreground }]}>{editing ? 'Edit task' : 'Add a task'}</Text></View><Pressable accessibilityLabel="Close" onPress={() => setModalVisible(false)}><Feather name="x" size={22} color={colors.mutedForeground} /></Pressable></View>
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>TASK NAME</Text>
             <TextInput value={name} onChangeText={setName} autoFocus placeholder="e.g. Read for 20 minutes" placeholderTextColor={colors.mutedForeground} style={[styles.input, { backgroundColor: colors.deepCard, borderColor: colors.border, color: colors.foreground }]} />
-            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>TARGET TIME</Text>
-            <TextInput value={target} onChangeText={setTarget} placeholder="e.g. 07:00 or Anytime" placeholderTextColor={colors.mutedForeground} style={[styles.input, { backgroundColor: colors.deepCard, borderColor: colors.border, color: colors.foreground }]} />
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>TARGET TIME / WINDOW</Text>
+            <TextInput value={target} onChangeText={(value) => { setTarget(value); setTargetError(''); }} placeholder="07:00 · after Fajr · 30 min" placeholderTextColor={colors.mutedForeground} style={[styles.input, { backgroundColor: colors.deepCard, borderColor: targetError ? colors.destructive : colors.border, color: colors.foreground }]} />
+            {targetError && <Text style={[styles.errorText, { color: colors.destructive }]}>{targetError}</Text>}
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>WHY IT MATTERS</Text>
             <TextInput value={description} onChangeText={setDescription} placeholder="A short reminder to return to" placeholderTextColor={colors.mutedForeground} multiline style={[styles.input, styles.textArea, { backgroundColor: colors.deepCard, borderColor: colors.border, color: colors.foreground }]} />
-            <Pressable testID="save-task" onPress={save} disabled={!name.trim()} style={({ pressed }) => [styles.saveButton, { backgroundColor: name.trim() ? colors.primary : colors.muted, opacity: pressed ? 0.76 : 1 }]}><Text style={[styles.saveText, { color: name.trim() ? colors.primaryForeground : colors.mutedForeground }]}>{editing ? 'Save changes' : 'Add to my system'}</Text></Pressable>
+            <Pressable testID="save-task" onPress={save} disabled={!name.trim() || !target.trim()} style={({ pressed }) => [styles.saveButton, { backgroundColor: name.trim() && target.trim() ? colors.primary : colors.muted, opacity: pressed ? 0.76 : 1 }]}><Text style={[styles.saveText, { color: name.trim() && target.trim() ? colors.primaryForeground : colors.mutedForeground }]}>{editing ? 'Save changes' : 'Add to my system'}</Text></Pressable>
             {editing && <Pressable onPress={() => { setModalVisible(false); remove(editing); }} style={styles.deleteButton}><Feather name="trash-2" size={15} color={colors.destructive} /><Text style={[styles.deleteText, { color: colors.destructive }]}>Remove task</Text></Pressable>}
           </View>
         </View>
@@ -107,6 +112,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 25, fontFamily: 'Inter_600SemiBold' },
   fieldLabel: { fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 1.2, marginBottom: 8 },
   input: { minHeight: 50, borderRadius: 14, borderWidth: 1, paddingHorizontal: 15, fontSize: 14, fontFamily: 'Inter_400Regular', marginBottom: 16 },
+  errorText: { fontSize: 10, fontFamily: 'Inter_400Regular', lineHeight: 14, marginTop: -9, marginBottom: 12 },
   textArea: { minHeight: 76, paddingTop: 14, textAlignVertical: 'top' },
   saveButton: { minHeight: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   saveText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
