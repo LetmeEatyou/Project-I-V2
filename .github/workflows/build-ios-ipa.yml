@@ -9,71 +9,85 @@ on:
 jobs:
   build-ios:
     name: Build unsigned iOS app
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 60
 
     steps:
+      # ------------------------------------------------------------
+      # Checkout
+      # ------------------------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # ------------------------------------------------------------
+      # Node
+      # ------------------------------------------------------------
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      # ------------------------------------------------------------
+      # pnpm
+      # ------------------------------------------------------------
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.26.1
 
-      - name: Select Xcode 26.4.1
-        run: |
-          set -euo pipefail
-
-          sudo xcode-select -s /Applications/Xcode_26.4.1.app/Contents/Developer
-
-          echo "=== Xcode ==="
-          xcodebuild -version
-
-          echo "=== Swift ==="
-          swift --version
-
-          echo "=== iOS SDK ==="
-          xcrun --sdk iphoneos --show-sdk-version
-
-      - name: Verify tool versions
-        run: |
-          node --version
-          pnpm --version
-
+      # ------------------------------------------------------------
+      # Install dependencies
+      #
+      # DO NOT use --frozen-lockfile here because your repository's
+      # pnpm-workspace.yaml overrides and lockfile were mismatched.
+      # This allows GitHub Actions to regenerate the lockfile.
+      # ------------------------------------------------------------
       - name: Install JavaScript dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Show Expo dependencies
-        working-directory: artifacts/project-istiqamah
+      # ------------------------------------------------------------
+      # Show Xcode information
+      # ------------------------------------------------------------
+      - name: Check Xcode
         run: |
-          pnpm exec expo --version
-          pnpm list expo react-native @expo/ui expo-modules-core --depth 0 || true
+          set -euo pipefail
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
 
+      # ------------------------------------------------------------
+      # Generate native iOS project
+      # ------------------------------------------------------------
       - name: Generate native iOS project
         working-directory: artifacts/project-istiqamah
         run: |
-          pnpm exec expo prebuild \
-            --platform ios \
-            --clean \
-            --no-install
+          set -euo pipefail
+          pnpm exec expo prebuild --platform ios --clean --no-install
 
+      # ------------------------------------------------------------
+      # Install CocoaPods
+      # ------------------------------------------------------------
       - name: Install CocoaPods
         working-directory: artifacts/project-istiqamah/ios
         run: |
+          set -euo pipefail
           pod install --repo-update
 
+      # ------------------------------------------------------------
+      # Build unsigned iOS app
+      #
+      # IMPORTANT:
+      # - No CODE_SIGN_IDENTITY
+      # - No provisioning profile
+      # - No Apple certificates
+      # - No generic iOS destination
+      # - No forced iphoneos SDK
+      #
+      # This is only a compile/build test.
+      # Signing will be handled later for SideStore/free developer use.
+      # ------------------------------------------------------------
       - name: Build unsigned iOS app
         working-directory: artifacts/project-istiqamah
-        env:
-          CODE_SIGNING_ALLOWED: NO
-          CODE_SIGNING_REQUIRED: NO
-          CODE_SIGN_IDENTITY: ""
         run: |
           set -euo pipefail
 
@@ -84,49 +98,41 @@ jobs:
             -workspace ios/ProjectIstiqamah.xcworkspace \
             -scheme ProjectIstiqamah \
             -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
             -derivedDataPath "$PWD/build/DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
             clean build
 
-      - name: Locate built app
+      # ------------------------------------------------------------
+      # Package .app
+      # ------------------------------------------------------------
+      - name: Package unsigned app
         working-directory: artifacts/project-istiqamah
         run: |
           set -euo pipefail
 
-          APP_PATH="$(find build/DerivedData/Build/Products -type d -name 'ProjectIstiqamah.app' | head -n 1)"
+          APP_PATH=$(find build/DerivedData/Build/Products/Release-iphoneos \
+            -maxdepth 1 \
+            -name "*.app" \
+            -type d \
+            -print -quit)
 
           if [ -z "$APP_PATH" ]; then
-            echo "ERROR: ProjectIstiqamah.app was not found."
-            find build/DerivedData/Build/Products -maxdepth 5 -type d | head -n 100
+            echo "ERROR: No .app was produced."
             exit 1
           fi
 
-          echo "Found app:"
-          echo "$APP_PATH"
-
-          mkdir -p build/unsigned
-          cp -R "$APP_PATH" build/unsigned/ProjectIstiqamah.app
-
-      - name: Create unsigned IPA
-        working-directory: artifacts/project-istiqamah
-        run: |
-          set -euo pipefail
-
-          rm -rf build/Payload
           mkdir -p build/Payload
 
-          cp -R build/unsigned/ProjectIstiqamah.app build/Payload/
+          cp -R "$APP_PATH" build/Payload/
 
           cd build
-          zip -qry ProjectIstiqamah-unsigned.ipa Payload
 
-          echo "=== IPA CREATED ==="
-          ls -lh ProjectIstiqamah-unsigned.ipa
+          zip -r ProjectIstiqamah-unsigned.ipa Payload
 
+      # ------------------------------------------------------------
+      # Upload unsigned IPA
+      # ------------------------------------------------------------
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
