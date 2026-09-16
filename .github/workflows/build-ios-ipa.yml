@@ -34,7 +34,7 @@ jobs:
           swift --version
 
       - name: Install JavaScript dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install -no--frozen-lockfile
 
       - name: Verify Expo dependency versions
         working-directory: artifacts/project-istiqamah
