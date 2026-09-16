@@ -29,7 +29,20 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install JavaScript dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
+
+      - name: Verify ExpoModules versions
+        run: |
+          echo "expo-modules-jsi:"
+          pnpm why expo-modules-jsi
+
+          echo ""
+          echo "expo-modules-core:"
+          pnpm why expo-modules-core
+
+          echo ""
+          echo "Expo:"
+          pnpm why expo
 
       - name: Generate native iOS project
         working-directory: artifacts/project-istiqamah

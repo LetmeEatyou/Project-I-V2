@@ -15,5 +15,11 @@
   "devDependencies": {
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "expo-modules-jsi": "57.0.4",
+      "expo-modules-core": "57.0.11"
+    }
   }
 }
