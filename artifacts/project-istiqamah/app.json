@@ -13,6 +13,8 @@
       "resizeMode": "contain"
     },
     "ios": {
+      "bundleIdentifier": "com.projectistiqamah.app",
+      "buildNumber": "1",
       "supportsTablet": false
     },
     "android": {},
