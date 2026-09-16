@@ -1,4 +1,4 @@
-name: Build Project Istiqamah iOS IPA
+name: Build Project Istiqamah iOS
 
 on:
   workflow_dispatch:
@@ -7,353 +7,116 @@ on:
       - "v*"
 
 jobs:
-  build-ipa:
-    name: Build unsigned iOS IPA
-    runs-on: macos-26
+  build-ios:
+    name: Build unsigned iOS app
+    runs-on: macos-15
     timeout-minutes: 60
 
     steps:
-      # --------------------------------------------------
-      # Checkout repository
-      # --------------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # --------------------------------------------------
-      # Xcode / Swift
-      # --------------------------------------------------
-      - name: Select Xcode
-        run: |
-          set -euo pipefail
-
-          echo "Available Xcode installations:"
-          ls -d /Applications/Xcode*.app 2>/dev/null || true
-
-          if [ -d "/Applications/Xcode_26.6.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_26.6.app
-          elif [ -d "/Applications/Xcode_26.4.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_26.4.app
-          else
-            echo "Using default Xcode installation."
-          fi
-
-          echo ""
-          echo "Xcode version:"
-          xcodebuild -version
-
-          echo ""
-          echo "Swift version:"
-          swift --version
-
-          echo ""
-          echo "Developer directory:"
-          xcode-select -p
-
-      # --------------------------------------------------
-      # Node.js
-      # --------------------------------------------------
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # --------------------------------------------------
-      # pnpm
-      # --------------------------------------------------
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.26.1
 
-      # --------------------------------------------------
-      # Install dependencies
-      #
-      # no --frozen-lockfile because the repository had
-      # an overrides/lockfile mismatch.
-      # --------------------------------------------------
-      - name: Install JavaScript dependencies
+      - name: Verify tool versions
         run: |
-          set -euo pipefail
-
-          pnpm install --no-frozen-lockfile
-
-      # --------------------------------------------------
-      # DEBUG EXPO DEPENDENCIES
-      #
-      # This tells us exactly why @expo/ui is installed
-      # and which versions are being resolved.
-      # --------------------------------------------------
-      - name: Debug Expo UI dependency
-        run: |
-          set -u
-
-          echo ""
-          echo "========================================"
-          echo "PNPM VERSION"
-          echo "========================================"
+          node --version
           pnpm --version
+          xcodebuild -version
+          swift --version
 
-          echo ""
-          echo "========================================"
-          echo "@expo/ui DEPENDENCY TREE"
-          echo "========================================"
-          pnpm why @expo/ui || true
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
 
-          echo ""
-          echo "========================================"
-          echo "EXPO / REACT NATIVE PACKAGES"
-          echo "========================================"
-          pnpm list expo @expo/ui react-native --depth 0 || true
+      - name: Verify Expo dependency versions
+        working-directory: artifacts/project-istiqamah
+        run: |
+          pnpm exec expo --version
+          pnpm list expo react-native @expo/ui expo-modules-core --depth 0 || true
 
-          echo ""
-          echo "========================================"
-          echo "EXPO MODULES JSI"
-          echo "========================================"
-          pnpm why expo-modules-jsi || true
-
-          echo ""
-          echo "========================================"
-          echo "EXPO MODULES CORE"
-          echo "========================================"
-          pnpm why expo-modules-core || true
-
-      # --------------------------------------------------
-      # Generate native iOS project
-      # --------------------------------------------------
       - name: Generate native iOS project
         working-directory: artifacts/project-istiqamah
         run: |
-          set -euo pipefail
-
           pnpm exec expo prebuild \
             --platform ios \
             --clean \
             --no-install
 
-      # --------------------------------------------------
-      # Install CocoaPods
-      # --------------------------------------------------
       - name: Install CocoaPods
         working-directory: artifacts/project-istiqamah/ios
         run: |
-          set -euo pipefail
+          pod install --repo-update
 
-          pod install
-
-      # --------------------------------------------------
-      # Verify iOS environment
-      # --------------------------------------------------
-      - name: Verify iOS build environment
+      - name: Build unsigned iOS app
         working-directory: artifacts/project-istiqamah
+        env:
+          CODE_SIGNING_ALLOWED: NO
+          CODE_SIGNING_REQUIRED: NO
+          CODE_SIGN_IDENTITY: ""
         run: |
           set -euo pipefail
-
-          echo ""
-          echo "========================================"
-          echo "XCODE"
-          echo "========================================"
-          xcodebuild -version
-
-          echo ""
-          echo "========================================"
-          echo "SWIFT"
-          echo "========================================"
-          swift --version
-
-          echo ""
-          echo "========================================"
-          echo "COCOAPODS"
-          echo "========================================"
-          pod --version
-
-          echo ""
-          echo "========================================"
-          echo "NODE"
-          echo "========================================"
-          node --version
-
-          echo ""
-          echo "========================================"
-          echo "PNPM"
-          echo "========================================"
-          pnpm --version
-
-          echo ""
-          echo "========================================"
-          echo "EXPO"
-          echo "========================================"
-          pnpm exec expo --version
-
-      # --------------------------------------------------
-      # Archive unsigned iOS app
-      #
-      # NO certificates
-      # NO provisioning profiles
-      # NO Apple signing secrets
-      # --------------------------------------------------
-      - name: Archive unsigned iOS app
-        working-directory: artifacts/project-istiqamah
-        run: |
-          set -uo pipefail
 
           rm -rf build
           mkdir -p build
-
-          LOG_FILE="$PWD/build/xcodebuild.log"
-
-          echo ""
-          echo "========================================"
-          echo "STARTING XCODE ARCHIVE"
-          echo "========================================"
 
           xcodebuild \
             -workspace ios/ProjectIstiqamah.xcworkspace \
             -scheme ProjectIstiqamah \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath "$PWD/build/ProjectIstiqamah.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build/DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            clean archive \
-            2>&1 | tee "$LOG_FILE"
+            CODE_SIGN_IDENTITY="" \
+            clean build
 
-          XCODE_EXIT=${PIPESTATUS[0]}
-
-          echo ""
-          echo "========================================"
-          echo "XCODE BUILD RESULT"
-          echo "========================================"
-
-          if [ "$XCODE_EXIT" -ne 0 ]; then
-            echo "Xcode exited with code: $XCODE_EXIT"
-
-            echo ""
-            echo "========================================"
-            echo "ACTUAL ERROR LINES"
-            echo "========================================"
-
-            grep -n -E \
-              "error:|fatal error:|BUILD FAILED|Command .* failed" \
-              "$LOG_FILE" | tail -100 || true
-
-            echo ""
-            echo "========================================"
-            echo "FAILED BUILD COMMANDS"
-            echo "========================================"
-
-            grep -n \
-              "The following build commands failed:" \
-              "$LOG_FILE" -A40 || true
-
-            echo ""
-            echo "========================================"
-            echo "LAST 150 LOG LINES"
-            echo "========================================"
-
-            tail -150 "$LOG_FILE"
-
-            exit "$XCODE_EXIT"
-          fi
-
-          echo ""
-          echo "========================================"
-          echo "XCODE ARCHIVE SUCCEEDED"
-          echo "========================================"
-
-      # --------------------------------------------------
-      # Verify archive
-      # --------------------------------------------------
-      - name: Verify archive
+      - name: Locate built app
         working-directory: artifacts/project-istiqamah
         run: |
           set -euo pipefail
 
-          APP_PATH="$PWD/build/ProjectIstiqamah.xcarchive/Products/Applications/ProjectIstiqamah.app"
+          APP_PATH="$(find build/DerivedData/Build/Products -type d -name 'ProjectIstiqamah.app' | head -n 1)"
 
-          if [ ! -d "$APP_PATH" ]; then
+          if [ -z "$APP_PATH" ]; then
             echo "ERROR: ProjectIstiqamah.app was not found."
-
-            echo ""
-            echo "Archive contents:"
-            find "$PWD/build/ProjectIstiqamah.xcarchive" \
-              -maxdepth 6 \
-              -print
-
+            find build/DerivedData/Build/Products -maxdepth 5 -type d | head -n 100
             exit 1
           fi
 
-          echo "Archive verified:"
+          echo "Found app:"
           echo "$APP_PATH"
 
-      # --------------------------------------------------
-      # Package unsigned app as IPA
-      #
-      # This is NOT signed.
-      # Signing will be done later.
-      # --------------------------------------------------
-      - name: Package unsigned app
+          mkdir -p build/unsigned
+          cp -R "$APP_PATH" build/unsigned/ProjectIstiqamah.app
+
+      - name: Create unsigned IPA
         working-directory: artifacts/project-istiqamah
         run: |
           set -euo pipefail
-
-          APP_PATH="$PWD/build/ProjectIstiqamah.xcarchive/Products/Applications/ProjectIstiqamah.app"
 
           rm -rf build/Payload
-          rm -f build/ProjectIstiqamah-unsigned.ipa
-
           mkdir -p build/Payload
 
-          cp -R \
-            "$APP_PATH" \
-            build/Payload/ProjectIstiqamah.app
+          cp -R build/unsigned/ProjectIstiqamah.app build/Payload/
 
           cd build
+          zip -qry ProjectIstiqamah-unsigned.ipa Payload
 
-          zip -r \
-            ProjectIstiqamah-unsigned.ipa \
-            Payload
+          echo "Created:"
+          ls -lh ProjectIstiqamah-unsigned.ipa
 
-      # --------------------------------------------------
-      # Verify IPA
-      # --------------------------------------------------
-      - name: Verify IPA
-        working-directory: artifacts/project-istiqamah
-        run: |
-          set -euo pipefail
-
-          IPA="$PWD/build/ProjectIstiqamah-unsigned.ipa"
-
-          if [ ! -f "$IPA" ]; then
-            echo "ERROR: IPA was not created."
-            exit 1
-          fi
-
-          echo ""
-          echo "========================================"
-          echo "UNSIGNED IPA CREATED"
-          echo "========================================"
-
-          ls -lh "$IPA"
-
-      # --------------------------------------------------
-      # Upload unsigned IPA
-      # --------------------------------------------------
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: project-istiqamah-ios-unsigned
           path: artifacts/project-istiqamah/build/ProjectIstiqamah-unsigned.ipa
           if-no-files-found: error
-          retention-days: 7
-
-      # --------------------------------------------------
-      # Always upload Xcode log
-      # --------------------------------------------------
-      - name: Upload Xcode build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: project-istiqamah-xcode-build-log
-          path: artifacts/project-istiqamah/build/xcodebuild.log
-          if-no-files-found: ignore
-          retention-days: 7
