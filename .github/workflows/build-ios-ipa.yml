@@ -9,7 +9,7 @@ on:
 jobs:
   build-ios:
     name: Build unsigned iOS app
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
 
     steps:
@@ -26,12 +26,17 @@ jobs:
         with:
           version: 10.26.1
 
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_26.0.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
       - name: Verify tool versions
         run: |
           node --version
           pnpm --version
-          xcodebuild -version
-          swift --version
 
       - name: Install JavaScript dependencies
         run: pnpm install --no-frozen-lockfile
@@ -111,7 +116,7 @@ jobs:
           cd build
           zip -qry ProjectIstiqamah-unsigned.ipa Payload
 
-          echo "Created:"
+          echo "Created IPA:"
           ls -lh ProjectIstiqamah-unsigned.ipa
 
       - name: Upload unsigned IPA
